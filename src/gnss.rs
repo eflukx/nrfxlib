@@ -138,6 +138,8 @@ impl GnssSocket {
 
 	/// Stop the GNSS system.
 	pub fn stop(&self) -> Result<(), Error> {
+		log::warn!("GNSS stopped!");
+		
 		self.0.set_option(SocketOption::GnssStop)?;
 		Ok(())
 	}

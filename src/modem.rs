@@ -115,20 +115,6 @@ pub fn off() -> Result<(), Error> {
 	Ok(())
 }
 
-/// Enable GNSS on the nRF9160-DK (PCA10090NS)
-///
-/// Sends a AT%XMAGPIO command which activates the off-chip GNSS RF routing
-/// switch when receiving signals between 1574 MHz and 1577 MHz.
-///
-/// Works on the nRF9160-DK (PCA10090NS) and Actinius Icarus. Other PCBs may
-/// use different MAGPIO pins to control the GNSS switch.
-pub fn configure_gnss_on_pca10090ns() -> Result<(), Error> {
-	debug!("Configuring XMAGPIO pins for 1574-1577 MHz");
-	// Configure the GNSS antenna. See `nrf/samples/nrf9160/gps/src/main.c`.
-	crate::at::send_at_command("AT%XMAGPIO=1,0,0,1,1,1574,1577", |_| {})?;
-	Ok(())
-}
-
 /// Set which radios should be active. Only works when modem is off.
 pub fn set_system_mode(mode: SystemMode) -> Result<(), Error> {
 	let at_command = match mode {
@@ -163,13 +149,3 @@ pub fn get_system_mode() -> Result<SystemMode, Error> {
 	})?;
 	result
 }
-
-//******************************************************************************
-// Private Functions and Impl on Private Types
-//******************************************************************************
-
-// None
-
-//******************************************************************************
-// End of File
-//******************************************************************************

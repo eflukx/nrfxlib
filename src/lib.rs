@@ -57,7 +57,7 @@ use cortex_m::interrupt::Mutex;
 use linked_list_allocator::Heap;
 use log::{debug, trace};
 use nrf9160_pac as cpu;
-use nrfxlib_sys as sys;
+pub use nrfxlib_sys as sys;
 
 //******************************************************************************
 // Types

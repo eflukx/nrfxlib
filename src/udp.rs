@@ -84,6 +84,7 @@ impl UdpSocket {
 		// Now, make a null-terminated hostname
 		let mut hostname_smallstring: heapless::String<64> = heapless::String::new();
 		write!(hostname_smallstring, "{}\0", hostname).map_err(|_| Error::HostnameTooLong)?;
+		
 		// Now call getaddrinfo with some hints
 		let hints = sys::nrf_addrinfo {
 			ai_flags: 0,
@@ -95,6 +96,7 @@ impl UdpSocket {
 			ai_canonname: core::ptr::null_mut(),
 			ai_next: core::ptr::null_mut(),
 		};
+
 		let mut output_ptr: *mut sys::nrf_addrinfo = core::ptr::null_mut();
 		let mut result = unsafe {
 			sys::nrf_getaddrinfo(

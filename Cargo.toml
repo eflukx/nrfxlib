@@ -1,7 +1,9 @@
 [package]
 name = "nrfxlib"
 version = "0.6.0"
-authors = ["Jonathan Pallant (42 Technology) <jonathan.pallant@42technology.com>"]
+authors = [
+    "Jonathan Pallant (42 Technology) <jonathan.pallant@42technology.com>",
+]
 edition = "2018"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
@@ -12,9 +14,10 @@ resolver = "2"
 [dependencies]
 nrf9160-pac = "0.12"
 cortex-m = "0.7"
-heapless = "0.7"
+heapless = "0.8.0"
 linked_list_allocator = { version = "0.10", default-features = false, features = [
     "use_spin",
 ] }
 log = "0.4"
 nrfxlib-sys = "=1.5.1"
+# nrfxlib-sys = { git = "https://github.com/eflukx/nrfxlib-sys.git", branch = "develop" }
