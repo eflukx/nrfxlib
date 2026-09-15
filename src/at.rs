@@ -18,7 +18,7 @@
 // Imports
 //******************************************************************************
 
-use crate::{raw::*, AtError, Error};
+use crate::{clock::Deadline, raw::*, AtError, Error};
 
 //******************************************************************************
 // Types
@@ -32,7 +32,9 @@ pub struct AtSocket(Socket);
 // Constants
 //******************************************************************************
 
-// None
+/// Timeout for the response to an AT command (with a registered [`crate::Clock`]). Generous, as e.g.
+/// detaching from the network (`AT+CFUN=0`) can take several seconds.
+const RESPONSE_TIMEOUT_MS: u64 = 60_000;
 
 //******************************************************************************
 // Global Variables
@@ -68,23 +70,24 @@ impl AtSocket {
 	/// ERROR:xxx`. These are mapped to a Rust `Result` type.
 	///
 	/// Any other data received is deemed to be a command result and passed to the given fn `callback_function`.
+	///
+	/// Gives up with [`Error::Timeout`] after [`RESPONSE_TIMEOUT_MS`] (with a registered [`crate::Clock`]).
 	pub fn poll_response<F>(&mut self, mut callback_function: F) -> Result<(), Error>
 	where
 		F: FnMut(&str),
 	{
+		let deadline = Deadline::after_ms(RESPONSE_TIMEOUT_MS);
 		let result;
 		'outer: loop {
 			let mut buf = [0u8; 256];
 			let length = 'inner: loop {
 				match self.recv(&mut buf)? {
-					None => {
-						// EAGAIN
-					}
+					// EAGAIN: wait for the modem
+					None => deadline.wait()?,
 					Some(n) => break 'inner n,
 				};
 			};
-			let s = unsafe { core::str::from_utf8_unchecked(&buf[0..length - 1]) };
-			for line in s.lines() {
+			for line in response_str(&buf[..length]).lines() {
 				let line = line.trim();
 				match line {
 					"OK" => {
@@ -141,7 +144,8 @@ impl core::ops::Deref for AtSocket {
 /// indications received. Indications have any whitespace or newlines trimmed.
 ///
 /// Creates and destroys a new NRF_AF_LTE/NRF_PROTO_AT socket. Will block
-/// until we get 'OK' or some sort of error response from the modem.
+/// until we get 'OK' or some sort of error response from the modem, or times
+/// out (see [`AtSocket::poll_response`]).
 pub fn send_at_command<F>(command: &str, function: F) -> Result<(), Error>
 where
 	F: FnMut(&str),
@@ -149,6 +153,20 @@ where
 	let mut skt = AtSocket::new()?;
 	skt.send_command(command)?;
 	skt.poll_response(function)
+}
+
+/// The text in a response from the modem: up to the terminating nul, and up
+/// to the first invalid UTF-8 (if any).
+pub(crate) fn response_str(buf: &[u8]) -> &str {
+	let buf = match buf.iter().position(|&b| b == 0) {
+		Some(nul) => &buf[..nul],
+		None => buf,
+	};
+
+	match core::str::from_utf8(buf) {
+		Ok(s) => s,
+		Err(e) => core::str::from_utf8(&buf[..e.valid_up_to()]).unwrap_or_default(),
+	}
 }
 
 //******************************************************************************

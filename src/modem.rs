@@ -17,7 +17,7 @@
 // Imports
 //******************************************************************************
 
-use crate::Error;
+use crate::{at::response_str, clock::Deadline, Error};
 use log::debug;
 
 //******************************************************************************
@@ -65,32 +65,31 @@ pub enum SystemMode {
 ///
 /// The list of acceptable CEREG response indications is taken from the Nordic
 /// `lte_link_control` driver.
-pub fn wait_for_lte() -> Result<(), Error> {
+///
+/// Gives up with [`Error::Timeout`] after `timeout_ms` (with a registered [`crate::Clock`]).
+pub fn wait_for_lte(timeout_ms: u64) -> Result<(), Error> {
 	debug!("Waiting for LTE...");
+	let deadline = Deadline::after_ms(timeout_ms);
 	let skt = crate::at::AtSocket::new()?;
 	// Subscribe
 	skt.write(b"AT+CEREG=2")?;
 
 	let connected_indications = ["+CEREG: 1", "+CEREG:1", "+CEREG: 5", "+CEREG:5"];
-	'outer: loop {
+	loop {
 		let mut buf = [0u8; 128];
-		let maybe_length = skt.recv(&mut buf)?;
-		if let Some(length) = maybe_length {
-			let s = unsafe { core::str::from_utf8_unchecked(&buf[0..length - 1]) };
-			for line in s.lines() {
-				let line = line.trim();
-				debug!("RX {:?}", line);
-				for ind in &connected_indications {
-					if line.starts_with(ind) {
-						break 'outer;
+		match skt.recv(&mut buf)? {
+			Some(length) => {
+				for line in response_str(&buf[..length]).lines() {
+					let line = line.trim();
+					debug!("RX {:?}", line);
+					if connected_indications.iter().any(|ind| line.starts_with(ind)) {
+						return Ok(());
 					}
 				}
 			}
-		} else {
-			cortex_m::asm::wfe();
+			None => deadline.wait()?,
 		}
 	}
-	Ok(())
 }
 
 /// Powers the modem on and sets it to auto-register, but does not wait for it
