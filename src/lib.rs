@@ -35,6 +35,7 @@
 
 pub mod api;
 pub mod at;
+mod clock;
 pub mod dtls;
 mod ffi;
 pub mod gnss;
@@ -49,6 +50,7 @@ pub mod udp;
 //******************************************************************************
 
 pub use api::*;
+pub use clock::{set_clock, Clock};
 pub use ffi::{get_last_error, NrfxErr};
 pub use raw::{poll, PollEntry, PollFlags, PollResult, Pollable};
 
@@ -110,6 +112,8 @@ pub enum Error {
 	WriteError,
 	/// Too many sockets given
 	TooManySockets,
+	/// Timed out waiting for the modem
+	Timeout,
 }
 
 /// We need to wrap our heap so it's creatable at run-time and accessible from an ISR.

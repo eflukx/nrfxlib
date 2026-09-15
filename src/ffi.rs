@@ -111,18 +111,39 @@ pub fn get_last_error() -> i32 {
 	LAST_ERROR.load(core::sync::atomic::Ordering::SeqCst)
 }
 
-/// Function required by BSD library
+/// Function required by BSD library. Sleeps until the timeout or an event (any interrupt, e.g. from the
+/// modem), `*p_timeout_ms` is updated with the remaining time. Being woken early is fine: the library
+/// checks its condition and waits again. Without a registered [`crate::Clock`] it busy-waits.
 #[no_mangle]
-pub extern "C" fn nrf_modem_os_timedwait(_context: u32, p_timeout_ms: *const i32) -> i32 {
+pub extern "C" fn nrf_modem_os_timedwait(_context: u32, p_timeout_ms: *mut i32) -> i32 {
 	let timeout_ms = unsafe { *p_timeout_ms };
-	if timeout_ms < 0 {
-		// With Zephyr, negative timeouts pend on a semaphore with K_FOREVER.
-		// We can't do that here.
-		0i32
-	} else {
+
+	let Some(clock) = crate::clock::clock() else {
+		if timeout_ms < 0 {
+			// With Zephyr, negative timeouts pend on a semaphore with K_FOREVER.
+			// We can't do that here.
+			return 0;
+		}
 		// NRF9160 runs at 64 MHz, so this is close enough
 		cortex_m::asm::delay((timeout_ms as u32) * 64_000);
+		return nrfxlib_sys::NRF_ETIMEDOUT as i32;
+	};
+
+	if timeout_ms < 0 {
+		// Infinite timeout: wait for the next event
+		(clock.wait_for_event_until_ms)(u64::MAX);
+		return 0;
+	}
+
+	let deadline_ms = (clock.now_ms)() + timeout_ms as u64;
+	(clock.wait_for_event_until_ms)(deadline_ms);
+	let remaining_ms = deadline_ms.saturating_sub((clock.now_ms)());
+	unsafe { *p_timeout_ms = remaining_ms as i32 };
+
+	if remaining_ms == 0 {
 		nrfxlib_sys::NRF_ETIMEDOUT as i32
+	} else {
+		0
 	}
 }
 
